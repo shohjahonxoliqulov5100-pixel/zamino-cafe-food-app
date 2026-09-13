@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zamino Cafe - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <!-- Login Ekran -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+        <form onsubmit="checkAdminPin(event)" class="bg-white p-6 rounded-3xl w-full max-w-sm text-center space-y-4 shadow-2xl">
+            <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+                <i class="fa-solid fa-utensils"></i>
+            </div>
+            <h2 class="font-bold text-lg">Zamino Cafe Admin</h2>
+            <p class="text-xs text-gray-400">Tizimga kirish uchun PIN-kodni kiriting (PIN: <b>7777</b>)</p>
+            <input type="password" id="pin-input" placeholder="PIN-kod" class="w-full text-center text-xl font-bold py-3 border rounded-2xl bg-slate-50 focus:outline-orange-500">
+            <button type="submit" class="w-full py-3 bg-orange-500 text-white font-bold rounded-2xl hover:bg-orange-600 transition-colors">Kirish</button>
+        </form>
+    </div>
+
+    <!-- Asosiy Oyna -->
+    <div id="admin-main" class="hidden min-h-screen pb-12">
+        <!-- Header -->
+        <header class="bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-utensils text-orange-500 text-lg"></i>
+                <h1 class="font-bold text-sm">Zamino Cafe - Boshqaruv</h1>
+            </div>
+            <button onclick="location.reload()" class="text-xs bg-slate-800 px-3 py-1.5 rounded-xl hover:bg-slate-700">Chiqish</button>
+        </header>
+
+        <div class="p-4 max-w-lg mx-auto space-y-6">
+            <!-- Menyu/Tovarlar Boshqaruvi -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-sm font-bold text-slate-900">Menyu Taomlari</h2>
+                    <button onclick="openProductModal()" class="px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 shadow-sm">+ Taom Qo'shish</button>
+                </div>
+                
+                <!-- Firebase Tovar Ro'yxati -->
+                <div id="admin-products-list" class="space-y-2 pt-2">
+                    <p class="text-center text-gray-400 py-6 text-xs">Taomlar yuklanmoqda...</p>
+                </div>
+            </div>
+
+            <!-- Buyurtmalar Boshqaruvi -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+                <h2 class="text-sm font-bold text-slate-900">Kelib Tushgan Buyurtmalar</h2>
+                
+                <!-- Firebase Buyurtmalar Ro'yxati -->
+                <div id="admin-orders-list" class="space-y-2 pt-2">
+                    <p class="text-center text-gray-400 py-6 text-xs">Buyurtmalar yuklanmoqda...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Taom Qo'shish Modali -->
+    <div id="product-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <form id="product-form" onsubmit="handleProductSubmit(event)" class="bg-white p-5 rounded-3xl w-full max-w-sm space-y-3 text-xs shadow-xl">
+            <h3 class="font-bold text-sm border-b pb-2">Yangi Taom Qo'shish</h3>
+            <div>
+                <label class="block font-semibold mb-1">Taom Nomi</label>
+                <input type="text" id="prod-name" required placeholder="Masalan: Lavash" class="w-full p-2.5 border rounded-xl bg-gray-50 focus:outline-orange-500">
+            </div>
+            <div>
+                <label class="block font-semibold mb-1">Narxi ($)</label>
+                <input type="number" step="0.01" id="prod-price" required placeholder="5.5" class="w-full p-2.5 border rounded-xl bg-gray-50 focus:outline-orange-500">
+            </div>
+            <div>
+                <label class="block font-semibold mb-1">Ikonka Tanlang</label>
+                <select id="prod-icon" class="w-full p-2.5 border rounded-xl bg-gray-50 focus:outline-orange-500">
+                    <option value="fa-utensils">Taom / Ovqat</option>
+                    <option value="fa-burger">Burger</option>
+                    <option value="fa-pizza-slice">Pitsa</option>
+                    <option value="fa-mug-hot">Ichimlik / Qahva</option>
+                    <option value="fa-ice-cream">Shirinlik</option>
+                </select>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button type="button" onclick="closeProductModal()" class="w-1/2 py-2.5 border rounded-xl font-bold text-gray-600">Bekor qilish</button>
+                <button type="submit" class="w-1/2 py-2.5 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600">Saqlash</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Firebase SDK Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Firebase konfiguratsiyasi
+        const firebaseConfig = {
+            apiKey: "AIzaSyA57Rc22DVSBiXnU2G_hcpArpo8rzTSW",
+            authDomain: "meningdokonim-f6f59.firebaseapp.com",
+            projectId: "meningdokonim-f6f59",
+            storageBucket: "meningdokonim-f6f59.firebasestorage.app",
+            messagingSenderId: "1053034169551",
+            appId: "1:1053034169551:web:ddd24d38fb2d8f1beb38e4",
+            measurementId: "G-PSGY6FFHKR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // PIN tekshiruv
+        window.checkAdminPin = function(e) {
+            e.preventDefault();
+            if (document.getElementById('pin-input').value === "7777") {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('admin-main').classList.remove('hidden');
+                listenFirebaseData();
+            } else {
+                alert("PIN-kod xato!");
+            }
+        };
+
+        function listenFirebaseData() {
+            // Firestore'dan taomlarni olish
+            onSnapshot(collection(db, "products"), (snapshot) => {
+                const container = document.getElementById('admin-products-list');
+                if (snapshot.empty) {
+                    container.innerHTML = `<p class="text-center text-gray-400 text-xs py-4">Hozircha taomlar mavjud emas.</p>`;
+                    return;
+                }
+                let html = '';
+                snapshot.forEach((docSnap) => {
+                    const p = docSnap.data();
+                    html += `
+                        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 flex justify-between items-center text-xs">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+                                    <i class="fa-solid ${p.icon || 'fa-utensils'}"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold">${p.name}</p>
+                                    <p class="text-orange-600 font-extrabold">$${p.price}</p>
+                                </div>
+                            </div>
+                            <button onclick="deleteProductFromFirebase('${docSnap.id}')" class="text-red-500 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            });
+
+            // Firestore'dan buyurtmalarni olish
+            onSnapshot(collection(db, "orders"), (snapshot) => {
+                const container = document.getElementById('admin-orders-list');
+                if (snapshot.empty) {
+                    container.innerHTML = `<p class="text-center text-gray-400 text-xs py-4">Hali yangi buyurtmalar tushmadi.</p>`;
+                    return;
+                }
+                let html = '';
+                snapshot.forEach((docSnap) => {
+                    const o = docSnap.data();
+                    const items = o.items ? o.items.map(i => `${i.name} (${i.qty}x)`).join(', ') : '';
+                    html += `
+                        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-1 text-xs">
+                            <div class="flex justify-between font-bold border-b pb-1">
+                                <span>${o.user?.name || 'Mijoz'} (@${o.user?.username || ''})</span>
+                                <span class="text-orange-600">$${o.total}</span>
+                            </div>
+                            <p class="text-gray-600 text-[11px] pt-1">${items}</p>
+                            <button onclick="deleteOrderFromFirebase('${docSnap.id}')" class="text-[10px] text-red-500 mt-2 hover:underline">Buyurtmani yakunlash / o'chirish</button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            });
+        }
+
+        // Yangi taom qo'shish
+        window.handleProductSubmit = async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('prod-name').value;
+            const price = parseFloat(document.getElementById('prod-price').value);
+            const icon = document.getElementById('prod-icon').value;
+
+            try {
+                await addDoc(collection(db, "products"), { name, price, icon });
+                closeProductModal();
+                document.getElementById('product-form').reset();
+            } catch (err) {
+                alert("Saqlashda xatolik: " + err.message);
+            }
+        };
+
+        // Taomni o'chirish
+        window.deleteProductFromFirebase = async function(id) {
+            if (confirm("Ushbu taomni menyudan o'chirishni xohlaysizmi?")) {
+                await deleteDoc(doc(db, "products", id));
+            }
+        };
+
+        // Buyurtmani o'chirish
+        window.deleteOrderFromFirebase = async function(id) {
+            if (confirm("Buyurtma bajarildimi? Uni o'chirib tashlaysizmi?")) {
+                await deleteDoc(doc(db, "orders", id));
+            }
+        };
+
+        window.openProductModal = function() { document.getElementById('product-modal').classList.remove('hidden'); };
+        window.closeProductModal = function() { document.getElementById('product-modal').classList.add('hidden'); };
+    </script>
+</body>
+</html>
