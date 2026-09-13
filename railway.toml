@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+
+[build.buildpacks]
+nodejs = "18"
+
+[deploy]
+startCommand = "npm start"
