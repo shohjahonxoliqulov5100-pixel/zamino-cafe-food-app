@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zamino Cafe Food App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: var(--tg-theme-bg-color, #f4f4f5); color: var(--tg-theme-text-color, #18181b); font-family: -apple-system, sans-serif; }
+        .tg-card { background-color: var(--tg-theme-secondary-bg-color, #ffffff); }
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- Header -->
+    <header class="p-4 tg-card shadow-sm flex justify-between items-center sticky top-0 z-40">
+        <div class="flex items-center space-x-3">
+            <div id="user-avatar" class="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg">Z</div>
+            <div>
+                <h1 id="user-name" class="font-semibold text-sm">Zamino Cafe</h1>
+                <p id="user-username" class="text-xs text-gray-400">@zamino_cafe</p>
+            </div>
+        </div>
+        <button onclick="toggleCart()" class="p-2.5 rounded-xl bg-orange-50 relative text-orange-600">
+            <i class="fa-solid fa-basket-shopping text-lg"></i>
+            <span id="cart-badge" class="hidden absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">0</span>
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="p-4">
+        <h2 class="text-base font-bold mb-3">Menyu</h2>
+        <div id="user-products-grid" class="grid grid-cols-2 gap-3">
+            <p class="col-span-2 text-center text-gray-400 py-10">Taomlar yuklanmoqda...</p>
+        </div>
+    </main>
+
+    <!-- Savat Modali -->
+    <div id="cart-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex flex-col justify-end backdrop-blur-sm">
+        <div class="tg-card w-full max-h-[85vh] rounded-t-3xl p-5 flex flex-col">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <h2 class="text-base font-bold">Buyurtmangiz</h2>
+                <button onclick="toggleCart()" class="w-8 h-8 rounded-full bg-gray-100 text-gray-500">&times;</button>
+            </div>
+            <div id="cart-items" class="flex-1 overflow-y-auto py-4 space-y-3"></div>
+            <div class="pt-3 border-t space-y-3">
+                <div class="flex justify-between text-base font-bold">
+                    <span>Jami summa:</span>
+                    <span id="cart-total" class="text-orange-600">$0</span>
+                </div>
+                <button onclick="submitOrder()" class="w-full py-3.5 rounded-xl bg-orange-500 text-white font-semibold shadow-lg active:scale-95 transition-transform">Buyurtma berish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Firebase konfiguratsiyasi
+        const firebaseConfig = {
+            apiKey: "AIzaSyA57Rc22DVSBiXnU2G_hcpArpo8rzTSW",
+            authDomain: "meningdokonim-f6f59.firebaseapp.com",
+            projectId: "meningdokonim-f6f59",
+            storageBucket: "meningdokonim-f6f59.firebasestorage.app",
+            messagingSenderId: "1053034169551",
+            appId: "1:1053034169551:web:ddd24d38fb2d8f1beb38e4",
+            measurementId: "G-PSGY6FFHKR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let globalProducts = [];
+        let cart = {};
+
+        // Telegram WebApp obyektini tayyorlash
+        const tg = window.Telegram?.WebApp;
+        if (tg) { try { tg.ready(); tg.expand(); } catch (e) {} }
+        const user = tg?.initDataUnsafe?.user || { first_name: "Mijoz", username: "zamino_user", id: "000000" };
+        
+        document.getElementById('user-name').innerText = user.first_name || 'Zamino Cafe';
+        document.getElementById('user-username').innerText = user.username ? `@${user.username}` : `ID: ${user.id}`;
+        document.getElementById('user-avatar').innerText = (user.first_name || 'Z')[0].toUpperCase();
+
+        // Firebase Firestore'dan mahsulotlarni real-time yuklash
+        onSnapshot(collection(db, "products"), (snapshot) => {
+            globalProducts = [];
+            snapshot.forEach((doc) => {
+                globalProducts.push({ id: doc.id, ...doc.data() });
+            });
+            renderProducts();
+        });
+
+        function renderProducts() {
+            const grid = document.getElementById('user-products-grid');
+            if (globalProducts.length === 0) {
+                grid.innerHTML = `<p class="col-span-2 text-center text-gray-400 py-10">Menyuda hali taomlar yo'q.</p>`;
+                return;
+            }
+            grid.innerHTML = globalProducts.map(p => `
+                <div class="tg-card p-3 rounded-2xl border border-gray-100 flex flex-col justify-between shadow-sm">
+                    <div>
+                        <div class="w-full h-24 bg-orange-50 rounded-xl flex items-center justify-center text-3xl text-orange-500 mb-2">
+                            <i class="fa-solid ${p.icon || 'fa-utensils'}"></i>
+                        </div>
+                        <h3 class="font-semibold text-xs line-clamp-1">${p.name}</h3>
+                        <p class="text-xs text-orange-600 font-bold mt-1">$${p.price}</p>
+                    </div>
+                    <button onclick="addToCart('${p.id}')" class="mt-3 w-full py-2 bg-orange-50 text-orange-600 text-xs font-semibold rounded-xl hover:bg-orange-500 hover:text-white transition-colors">Savatga</button>
+                </div>
+            `).join('');
+        }
+
+        window.addToCart = function(id) {
+            cart[id] = (cart[id] || 0) + 1;
+            updateCartUI();
+        };
+
+        window.changeQty = function(id, delta) {
+            if (!cart[id]) return;
+            cart[id] += delta;
+            if (cart[id] <= 0) delete cart[id];
+            updateCartUI();
+        };
+
+        function updateCartUI() {
+            const count = Object.values(cart).reduce((a, b) => a + b, 0);
+            const badge = document.getElementById('cart-badge');
+            badge.innerText = count;
+            badge.classList.toggle('hidden', count === 0);
+
+            const container = document.getElementById('cart-items');
+            let total = 0;
+            const keys = Object.keys(cart);
+
+            if (keys.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-400 py-6 text-xs">Savatingiz bo'sh</p>`;
+                document.getElementById('cart-total').innerText = '$0';
+                return;
+            }
+
+            container.innerHTML = keys.map(id => {
+                const item = globalProducts.find(p => p.id === id);
+                if (!item) return '';
+                total += item.price * cart[id];
+                return `
+                    <div class="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl">
+                        <div class="text-xs">
+                            <p class="font-bold">${item.name}</p>
+                            <p class="text-gray-500">$${item.price} × ${cart[id]}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="changeQty('${id}', -1)" class="w-6 h-6 bg-white border rounded font-bold">-</button>
+                            <span class="text-xs font-bold">${cart[id]}</span>
+                            <button onclick="changeQty('${id}', 1)" class="w-6 h-6 bg-white border rounded font-bold">+</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('cart-total').innerText = `$${total.toFixed(2)}`;
+        }
+
+        window.toggleCart = function() {
+            document.getElementById('cart-modal').classList.toggle('hidden');
+        };
+
+        // Buyurtmani Firebase'ga yuborish
+        window.submitOrder = async function() {
+            const keys = Object.keys(cart);
+            if (keys.length === 0) return;
+
+            let totalAmount = 0;
+            const items = keys.map(id => {
+                const p = globalProducts.find(item => item.id === id);
+                totalAmount += (p ? p.price : 0) * cart[id];
+                return { productId: id, name: p?.name || '', price: p?.price || 0, qty: cart[id] };
+            });
+
+            const orderData = {
+                user: { name: user.first_name || 'Mijoz', username: user.username || 'yo\'q', tgId: user.id },
+                items: items,
+                total: totalAmount,
+                status: 'yangi',
+                createdAt: Date.now()
+            };
+
+            try {
+                await addDoc(collection(db, "orders"), orderData);
+                cart = {};
+                updateCartUI();
+                window.toggleCart();
+                alert("Buyurtmangiz Zamino Cafe admin panelliga yuborildi!");
+            } catch (e) {
+                alert("Xatolik yuz berdi: " + e.message);
+            }
+        };
+    </script>
+</body>
+</html>
